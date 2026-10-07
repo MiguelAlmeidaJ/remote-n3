@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev:api": "pnpm --filter @remote-n3/api dev",
+    "dev:desktop": "pnpm --filter @remote-n3/desktop dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   }
