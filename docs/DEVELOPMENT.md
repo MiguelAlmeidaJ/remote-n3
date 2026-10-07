@@ -40,7 +40,7 @@ Resposta esperada:
 }
 ```
 
-## Viewer
+## Desktop Viewer — Next.js
 
 Terminal 2:
 
@@ -48,13 +48,30 @@ Terminal 2:
 pnpm dev:desktop
 ```
 
-Abra o endereço exibido pelo Vite. Por padrão o viewer se conecta a:
+Abra:
+
+```text
+http://localhost:3000
+```
+
+Por padrão, o viewer se conecta a:
 
 ```text
 ws://127.0.0.1:8787/ws
 ```
 
-Para outro servidor, copie `apps/desktop/.env.example` para `apps/desktop/.env` e altere `VITE_SIGNALING_URL`.
+Para utilizar outro servidor:
+
+1. copie `apps/desktop/.env.example` para `apps/desktop/.env.local`;
+2. altere `NEXT_PUBLIC_SIGNALING_URL`.
+
+Exemplo:
+
+```env
+NEXT_PUBLIC_SIGNALING_URL=ws://192.168.1.50:8787/ws
+```
+
+O projeto Next.js usa `output: "export"`, preparando o frontend para ser empacotado posteriormente pelo Tauri sem depender de um servidor Next em produção.
 
 ## Agent
 
