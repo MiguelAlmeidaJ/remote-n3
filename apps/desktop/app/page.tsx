@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   DeviceHello,
   DevicePresence,
@@ -26,7 +26,7 @@ type SessionState = {
 const SIGNALING_URL =
   process.env.NEXT_PUBLIC_SIGNALING_URL ?? "ws://127.0.0.1:8787/ws";
 
-function getViewerId() {
+function getOrCreateViewerId() {
   const key = "remote-n3-viewer-id";
   const stored = window.localStorage.getItem(key);
   if (stored) return stored;
@@ -38,7 +38,7 @@ function getViewerId() {
 
 export default function HomePage() {
   const socketRef = useRef<WebSocket | null>(null);
-  const viewerId = useMemo(() => getViewerId(), []);
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [connection, setConnection] = useState<
     "connecting" | "online" | "offline"
   >("connecting");
@@ -47,6 +47,12 @@ export default function HomePage() {
   const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
+    setViewerId(getOrCreateViewerId());
+  }, []);
+
+  useEffect(() => {
+    if (!viewerId) return;
+
     let closedByComponent = false;
     let reconnectTimer: number | undefined;
 
@@ -154,6 +160,8 @@ export default function HomePage() {
   }, [viewerId]);
 
   function requestSession(deviceId: string) {
+    if (!viewerId) return;
+
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
@@ -174,7 +182,7 @@ export default function HomePage() {
   }
 
   function answerSession(accepted: boolean) {
-    if (!session) return;
+    if (!session || !viewerId) return;
 
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -218,7 +226,7 @@ export default function HomePage() {
       <section className="identity">
         <div>
           <span>Este viewer</span>
-          <strong>{viewerId}</strong>
+          <strong>{viewerId ?? "Inicializando..."}</strong>
         </div>
         <small>{SIGNALING_URL}</small>
       </section>
@@ -252,7 +260,11 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => requestSession(device.deviceId)}
-                disabled={connection !== "online" || session?.status === "pending"}
+                disabled={
+                  !viewerId ||
+                  connection !== "online" ||
+                  session?.status === "pending"
+                }
               >
                 Conectar
               </button>
