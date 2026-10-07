@@ -1,0 +1,285 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  color: #f7f7f7;
+  background: #090909;
+  font-synthesis: none;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 70% 0%, rgba(80, 80, 255, 0.13), transparent 34rem),
+    #090909;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.shell {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 48px 0 140px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.eyebrow,
+.session-label {
+  color: #8b8bff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  margin: 0 0 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 56px);
+  letter-spacing: -0.04em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.status span,
+.online-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #777;
+}
+
+.status--online span,
+.online-dot {
+  background: #4ddb8d;
+  box-shadow: 0 0 14px rgba(77, 219, 141, 0.55);
+}
+
+.status--connecting span {
+  background: #f0b84d;
+}
+
+.alert {
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border: 1px solid #5d3131;
+  border-radius: 14px;
+  background: #211313;
+  color: #ffb8b8;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+  border: 1px solid #252525;
+  border-radius: 18px;
+  background: rgba(18, 18, 18, 0.85);
+}
+
+.identity div {
+  display: grid;
+  gap: 6px;
+}
+
+.identity span,
+.identity small {
+  color: #777;
+  font-size: 12px;
+}
+
+.identity strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.device-card,
+.empty-state {
+  border: 1px solid #242424;
+  border-radius: 22px;
+  background: rgba(16, 16, 16, 0.92);
+}
+
+.device-card {
+  padding: 22px;
+}
+
+.device-card__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.device-card h2,
+.session-panel h3 {
+  margin: 0;
+}
+
+.device-card p,
+.session-panel p,
+.empty-state p {
+  color: #8c8c8c;
+}
+
+.device-card p {
+  margin: 4px 0 0;
+  text-transform: capitalize;
+}
+
+.platform {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #202020;
+  color: #c6c6ff;
+  font-weight: 800;
+}
+
+.device-card code {
+  display: block;
+  margin: 24px 0 18px;
+  color: #777;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.device-card button,
+.session-panel button {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: #6868ff;
+  color: white;
+  font-weight: 750;
+}
+
+.device-card button {
+  width: 100%;
+}
+
+.secondary {
+  background: #242424 !important;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  padding: 70px 24px;
+  text-align: center;
+}
+
+.empty-state h2 {
+  margin: 20px 0 8px;
+}
+
+.empty-state p {
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  margin: 0 auto;
+  border-radius: 22px;
+  background: #181822;
+  color: #9e9eff;
+  font-weight: 900;
+  font-size: 22px;
+}
+
+.session-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(900px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 20px 22px;
+  border: 1px solid #343434;
+  border-radius: 20px;
+  background: rgba(20, 20, 20, 0.97);
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+}
+
+.session-panel p {
+  margin: 6px 0 0;
+}
+
+.session-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 820px) {
+  .device-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .identity,
+  .session-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .session-actions {
+    width: 100%;
+  }
+
+  .session-actions button,
+  .session-panel > button {
+    flex: 1;
+    width: 100%;
+  }
+}
