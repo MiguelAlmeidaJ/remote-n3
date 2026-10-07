@@ -69,6 +69,23 @@ function isWebRtcSignalPayload(value: unknown): value is WebRtcSignalPayload {
   return kind === "offer" || kind === "answer" || kind === "ice" || kind === "hangup";
 }
 
+function waitForIceGatheringComplete(peer: RTCPeerConnection) {
+  if (peer.iceGatheringState === "complete") {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const handleStateChange = () => {
+      if (peer.iceGatheringState === "complete") {
+        peer.removeEventListener("icegatheringstatechange", handleStateChange);
+        resolve();
+      }
+    };
+
+    peer.addEventListener("icegatheringstatechange", handleStateChange);
+  });
+}
+
 export default function HomePage() {
   const socketRef = useRef<WebSocket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
@@ -140,21 +157,6 @@ export default function HomePage() {
     peerRef.current = peer;
     setPeerState("negotiating");
 
-    peer.addEventListener("icecandidate", (event) => {
-      if (!event.candidate) return;
-
-      try {
-        sendSignal(localId, peerId, {
-          kind: "ice",
-          candidate: event.candidate.toJSON(),
-        });
-      } catch (error) {
-        setLastError(
-          error instanceof Error ? error.message : "Falha ao enviar ICE candidate.",
-        );
-      }
-    });
-
     peer.addEventListener("connectionstatechange", () => {
       const state = peer.connectionState;
 
@@ -184,6 +186,7 @@ export default function HomePage() {
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
+      await waitForIceGatheringComplete(peer);
 
       if (!peer.localDescription) {
         throw new Error("Não foi possível gerar a descrição WebRTC local.");
@@ -219,6 +222,7 @@ export default function HomePage() {
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+        await waitForIceGatheringComplete(peer);
 
         if (!peer.localDescription) {
           throw new Error("Não foi possível gerar a resposta WebRTC.");
