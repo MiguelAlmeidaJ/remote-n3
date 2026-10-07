@@ -7,6 +7,7 @@ import type {
   ServerMessage,
   SessionRequest,
   SessionResponse,
+  SignalMessage,
 } from "@remote-n3/shared";
 
 type Device = {
@@ -23,8 +24,33 @@ type SessionState = {
   status: "pending" | "accepted" | "rejected";
 };
 
+type PeerState =
+  | "idle"
+  | "negotiating"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "failed"
+  | "closed";
+
+type WebRtcSignalPayload =
+  | {
+      kind: "offer" | "answer";
+      description: RTCSessionDescriptionInit;
+    }
+  | {
+      kind: "ice";
+      candidate: RTCIceCandidateInit;
+    }
+  | {
+      kind: "hangup";
+    };
+
 const SIGNALING_URL =
   process.env.NEXT_PUBLIC_SIGNALING_URL ?? "ws://127.0.0.1:8787/ws";
+
+const STUN_URL =
+  process.env.NEXT_PUBLIC_STUN_URL ?? "stun:stun.l.google.com:19302";
 
 function getOrCreateViewerId() {
   const key = "remote-n3-viewer-id";
@@ -36,18 +62,215 @@ function getOrCreateViewerId() {
   return id;
 }
 
+function isWebRtcSignalPayload(value: unknown): value is WebRtcSignalPayload {
+  if (!value || typeof value !== "object" || !("kind" in value)) return false;
+
+  const kind = (value as { kind?: unknown }).kind;
+  return kind === "offer" || kind === "answer" || kind === "ice" || kind === "hangup";
+}
+
 export default function HomePage() {
   const socketRef = useRef<WebSocket | null>(null);
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+  const controlChannelRef = useRef<RTCDataChannel | null>(null);
+
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [connection, setConnection] = useState<
     "connecting" | "online" | "offline"
   >("connecting");
   const [devices, setDevices] = useState<Record<string, Device>>({});
   const [session, setSession] = useState<SessionState | null>(null);
+  const [peerState, setPeerState] = useState<PeerState>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
+
+  function closePeer() {
+    controlChannelRef.current?.close();
+    controlChannelRef.current = null;
+
+    peerRef.current?.close();
+    peerRef.current = null;
+
+    setPeerState("closed");
+  }
+
+  function sendSignal(
+    from: string,
+    to: string,
+    payload: WebRtcSignalPayload,
+  ) {
+    const socket = socketRef.current;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      throw new Error("Servidor de signaling indisponível.");
+    }
+
+    const message: SignalMessage = {
+      type: "signal",
+      from,
+      to,
+      payload,
+    };
+
+    socket.send(JSON.stringify(message));
+  }
+
+  function configureControlChannel(channel: RTCDataChannel) {
+    controlChannelRef.current = channel;
+
+    channel.addEventListener("open", () => {
+      setPeerState("connected");
+    });
+
+    channel.addEventListener("close", () => {
+      setPeerState("disconnected");
+    });
+
+    channel.addEventListener("error", () => {
+      setPeerState("failed");
+    });
+  }
+
+  function createPeerConnection(localId: string, peerId: string) {
+    peerRef.current?.close();
+
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: STUN_URL }],
+    });
+
+    peerRef.current = peer;
+    setPeerState("negotiating");
+
+    peer.addEventListener("icecandidate", (event) => {
+      if (!event.candidate) return;
+
+      try {
+        sendSignal(localId, peerId, {
+          kind: "ice",
+          candidate: event.candidate.toJSON(),
+        });
+      } catch (error) {
+        setLastError(
+          error instanceof Error ? error.message : "Falha ao enviar ICE candidate.",
+        );
+      }
+    });
+
+    peer.addEventListener("connectionstatechange", () => {
+      const state = peer.connectionState;
+
+      if (state === "new") setPeerState("negotiating");
+      if (state === "connecting") setPeerState("connecting");
+      if (state === "connected") setPeerState("connected");
+      if (state === "disconnected") setPeerState("disconnected");
+      if (state === "failed") setPeerState("failed");
+      if (state === "closed") setPeerState("closed");
+    });
+
+    peer.addEventListener("datachannel", (event) => {
+      configureControlChannel(event.channel);
+    });
+
+    return peer;
+  }
+
+  async function startOffer(localId: string, peerId: string) {
+    try {
+      const peer = createPeerConnection(localId, peerId);
+      const controlChannel = peer.createDataChannel("remote-control", {
+        ordered: true,
+      });
+
+      configureControlChannel(controlChannel);
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+
+      if (!peer.localDescription) {
+        throw new Error("Não foi possível gerar a descrição WebRTC local.");
+      }
+
+      sendSignal(localId, peerId, {
+        kind: "offer",
+        description: peer.localDescription.toJSON(),
+      });
+    } catch (error) {
+      setPeerState("failed");
+      setLastError(
+        error instanceof Error
+          ? error.message
+          : "Falha ao iniciar negociação WebRTC.",
+      );
+    }
+  }
+
+  async function handleWebRtcSignal(
+    localId: string,
+    message: SignalMessage,
+  ) {
+    if (!isWebRtcSignalPayload(message.payload)) return;
+
+    const payload = message.payload;
+
+    try {
+      if (payload.kind === "offer") {
+        const peer = createPeerConnection(localId, message.from);
+
+        await peer.setRemoteDescription(payload.description);
+
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        if (!peer.localDescription) {
+          throw new Error("Não foi possível gerar a resposta WebRTC.");
+        }
+
+        sendSignal(localId, message.from, {
+          kind: "answer",
+          description: peer.localDescription.toJSON(),
+        });
+
+        return;
+      }
+
+      if (payload.kind === "answer") {
+        const peer = peerRef.current;
+
+        if (!peer) {
+          throw new Error("Resposta WebRTC recebida sem conexão ativa.");
+        }
+
+        await peer.setRemoteDescription(payload.description);
+        setPeerState("connecting");
+        return;
+      }
+
+      if (payload.kind === "ice") {
+        const peer = peerRef.current;
+        if (!peer) return;
+
+        await peer.addIceCandidate(payload.candidate);
+        return;
+      }
+
+      if (payload.kind === "hangup") {
+        closePeer();
+      }
+    } catch (error) {
+      setPeerState("failed");
+      setLastError(
+        error instanceof Error
+          ? error.message
+          : "Erro durante negociação WebRTC.",
+      );
+    }
+  }
 
   useEffect(() => {
     setViewerId(getOrCreateViewerId());
+
+    return () => {
+      peerRef.current?.close();
+    };
   }, []);
 
   useEffect(() => {
@@ -70,7 +293,7 @@ export default function HomePage() {
           deviceId: viewerId,
           name: `Viewer ${navigator.platform || "Desktop"}`,
           platform: "unknown",
-          agentVersion: "desktop-0.1.0",
+          agentVersion: "desktop-0.2.0",
         };
 
         socket.send(JSON.stringify(hello));
@@ -119,6 +342,8 @@ export default function HomePage() {
               ? { ...current, status: "accepted" }
               : current,
           );
+
+          void startOffer(viewerId, message.from);
           return;
         }
 
@@ -128,6 +353,11 @@ export default function HomePage() {
               ? { ...current, status: "rejected" }
               : current,
           );
+          return;
+        }
+
+        if (message.type === "signal") {
+          void handleWebRtcSignal(viewerId, message);
           return;
         }
 
@@ -161,6 +391,9 @@ export default function HomePage() {
 
   function requestSession(deviceId: string) {
     if (!viewerId) return;
+
+    closePeer();
+    setPeerState("idle");
 
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -196,6 +429,24 @@ export default function HomePage() {
 
     socket.send(JSON.stringify(response));
     setSession({ ...session, status: accepted ? "accepted" : "rejected" });
+
+    if (!accepted) {
+      closePeer();
+    }
+  }
+
+  function endSession() {
+    if (viewerId && session) {
+      try {
+        sendSignal(viewerId, session.peerId, { kind: "hangup" });
+      } catch {
+        // The local session must still close even if signaling is already offline.
+      }
+    }
+
+    closePeer();
+    setSession(null);
+    setPeerState("idle");
   }
 
   const onlineDevices = Object.values(devices).sort((a, b) =>
@@ -228,7 +479,9 @@ export default function HomePage() {
           <span>Este viewer</span>
           <strong>{viewerId ?? "Inicializando..."}</strong>
         </div>
-        <small>{SIGNALING_URL}</small>
+        <small>
+          {SIGNALING_URL} · P2P: {peerState}
+        </small>
       </section>
 
       <section className="device-grid">
@@ -288,7 +541,7 @@ export default function HomePage() {
                   ? "Este dispositivo quer iniciar uma sessão remota."
                   : "Aguardando autorização do dispositivo remoto…"
                 : session.status === "accepted"
-                  ? "Sessão autorizada. Próxima etapa: negociar WebRTC."
+                  ? `Sessão autorizada · WebRTC: ${peerState}`
                   : "A sessão foi recusada."}
             </p>
           </div>
@@ -301,8 +554,8 @@ export default function HomePage() {
               <button onClick={() => answerSession(true)}>Aceitar</button>
             </div>
           ) : (
-            <button className="secondary" onClick={() => setSession(null)}>
-              Fechar
+            <button className="secondary" onClick={endSession}>
+              Encerrar
             </button>
           )}
         </div>
