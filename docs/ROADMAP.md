@@ -12,9 +12,13 @@
 
 ## M1 — Primeira sessão Windows
 
-- [ ] Viewer desktop
-- [ ] Solicitação/aceite de sessão
-- [ ] WebRTC peer connection
+- [x] Viewer desktop em Next.js
+- [x] Solicitação/aceite de sessão
+- [x] Negociação WebRTC offer/answer
+- [x] ICE inicial via SDP completo + STUN
+- [x] DataChannel de controle
+- [ ] Validar P2P Windows ↔ Windows em duas máquinas
+- [ ] Validar fallback TURN em redes diferentes
 - [ ] Captura de tela Windows
 - [ ] Stream de vídeo
 - [ ] Mouse
